@@ -41,7 +41,14 @@ This is a unique **embedded-based Ludo game** built entirely using microcontroll
 
 ## 📷 Images / Demo
 
-> *(You can add images or video links here if available)*
+## 🧠 Hardware Logic Architecture
+
+Below is the hardware logic architecture of the Digital Ludo board.  
+It shows how rows and columns are wired to detect player positions and movements.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/LudoRowAndColumn.png" alt="Ludo Hardware Architecture" width="600"/>
+</p>
 
 ---
 
