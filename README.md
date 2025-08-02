@@ -50,6 +50,30 @@ It shows how rows and columns are wired to detect player positions and movements
   <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/LudoRowAndColumn.png" alt="Ludo Hardware Architecture" width="600"/>
 </p>
 
+## 🏗️ Development Phases
+
+Here are some development phase photos showing how the Digital Ludo project evolved from basic wiring to a working prototype.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/Dev_phase_1.jpg" alt="Development Phase 1" width="400"/>
+  <br/><em>Phase 1: Early breadboard wiring and Harnesing</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/Dev_phase_2.jpg" alt="Development Phase 2" width="400"/>
+  <br/><em>Phase 2: Code writing and Testing</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/Dev_phase_3.jpg" alt="Development Phase 3" width="400"/>
+  <br/><em>Phase 3: All Assembled and Stickers are sticked perfectly</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/brajeshimas/digital-ludo/main/images/Dev_phase_5.jpg" alt="Development Phase 3" width="400"/>
+  <br/><em>Phase 3: Final Testing</em>
+</p>
+
 ---
 
 ## 📁 Folder Structure
