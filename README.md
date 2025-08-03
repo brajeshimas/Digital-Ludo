@@ -78,3 +78,10 @@ Here are some development phase photos showing how the Digital Ludo project evol
 
 ## 📁 Folder Structure
 
+This project is organized into three main code sections:
+
+- `HardwareCode/` – Contains low-level embedded drivers (GPIO, EEPROM, SPI, etc.)
+- `UserCode/` – Application-level logic like dice control, player rules, LED matrix
+- `KeilProject/` – Keil uVision5 project files and workspace
+- `images/` – Development phase images and hardware architecture diagrams
+
