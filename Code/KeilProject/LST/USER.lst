@@ -1,0 +1,1069 @@
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE USER
+OBJECT MODULE PLACED IN .\OBJ\USER.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\UserCode\USER.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\HardWareCode;..\Har
+                    -dWareCode;..\UserCode) DEBUG OBJECTEXTEND PRINT(.\LST\USER.lst) TABS(2) OBJECT(.\OBJ\USER.obj)
+
+line level    source
+
+   1          
+   2          
+   3          
+   4          #include <REG_MG82F6D17.h>
+   5          #include ".\include\Type.h"
+   6          #include ".\include\API_Macro_MG82F6D17.H"
+   7          #include "USER.h"
+   8          #include "Dice.h"
+   9          #include "UserInput.h"
+  10          #include "LedBoard.h"
+  11          #include "UserDriverBridge.h"
+  12          #include "Buzzer.h"
+  13          
+  14          #define USER_INIT                   0
+  15          #define USER_IDLE                   1
+  16          #define ROLL_DICE                   2
+  17          #define GET_DICE                    3
+  18          #define DICE_VALIDITY_CHECK         4
+  19          #define USER_MOVE_TOKEN             5
+  20          #define USER_TOKEN_PROCESS          6
+  21          #define USER_TOKEN_ANIMATING        7
+  22          #define USER_RUN_NEXT_CHANCE        8
+  23          
+  24          
+  25          
+  26          
+  27          //animation manager------------------------------------------
+  28          #define ANMTN_INIT                     0
+  29          #define ANMTN_IDLE                     1
+  30          #define ANIMATE_FORWARD1               2
+  31          #define ANIMATE_FORWARD2               3
+  32          #define ANMTN_CHECK_CONFLICT           4
+  33          #define ANIMATE_BACKWARD1              5
+  34          #define ANIMATE_BACKWARD2              6
+  35          
+  36          
+  37          #define ANIMATE_FORWARD_TIME          200  //milli seconds
+  38          #define ANIMATE_BACKWARD_TIME         100//115  //milli seconds
+  39          
+  40          volatile uint8_t idata AnimtnState = 0;
+  41          bit AnimateCmd;
+  42          bit AnimationCmpltFlg;
+  43          volatile uint16_t idata AnimationTimer;
+  44          volatile uint8_t idata AnmtngTokenColour;
+  45          volatile uint8_t idata AnmtngTokenNumber;
+  46          volatile uint8_t idata AnmtngTokenValue;
+  47           uint8_t conflictTknNmbr;
+  48           uint8_t conflictTknClr;
+  49          bit ConflictFlg;
+  50          bit AnmtnBusy=0;
+  51          //uint8_t CheckAndGetConflictId(uint8_t srcColour,uint8_t srcTknNumber);
+  52          void CheckAndGetConflictId(uint8_t srcColour,uint8_t srcTknNumber);
+  53          uint8_t IsToknOnBaithki(uint8_t LedNumber);
+  54          //---------animation manager end------------------------------------------
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 2   
+
+  55          
+  56          
+  57          volatile uint8_t idata Red[4] = {0,0,0,0}; 
+  58          volatile uint8_t idata Blue[4] = {0,0,0,0};
+  59          volatile uint8_t idata Green[4] = {0,0,0,0};
+  60          volatile uint8_t idata Yellow[4] = {0,0,0,0};
+  61          
+  62          
+  63          uint8_t RedUserState;
+  64          bit RedUserFlg;
+  65          
+  66          uint8_t BlueUserState;
+  67          bit BlueUserFlg;
+  68          
+  69          uint8_t GreenUserState;
+  70          bit GreenUserFlg;
+  71          
+  72          uint8_t YellowUserState;
+  73          bit YellowUserFlg;
+  74          
+  75          uint8_t DiceResult;
+  76          uint8_t NewToknValue;
+  77          uint8_t NToknNumber;
+  78          
+  79          uint8_t DiceRollChance;
+  80          
+  81          
+  82          
+  83          bit IsDiceValueValid(uint8_t DiceValue,uint8_t UserBuff[4]);
+  84          uint8_t MoveToken(uint8_t OldTokenNumber,uint8_t DiceVal);
+  85          bit IsAllTokenMoved(uint8_t Token[4]);
+  86          bit IsOnlyTokenMovable(uint8_t ToknClr,uint8_t DiceValue);
+  87          void RedUser(void)
+  88          {
+  89   1        switch(RedUserState)
+  90   1        {
+  91   2          
+  92   2        case USER_INIT:
+  93   2          RedUserFlg = 1;
+  94   2          RedUserState = USER_IDLE;
+  95   2          SetArrowPointTo(RED);
+  96   2          break;
+  97   2        
+  98   2        case USER_IDLE:
+  99   2          if(RedUserFlg)
+ 100   2          {
+ 101   3            RedUserFlg = 0;
+ 102   3            if(!IsAllTokenMoved(Red))
+ 103   3            RedUserState = ROLL_DICE;
+ 104   3            else
+ 105   3            {BlueUserFlg = 1;SetArrowPointTo(BLUE);}
+ 106   3          }
+ 107   2          break;
+ 108   2          
+ 109   2        case ROLL_DICE:
+ 110   2          if(UserInput == RED_KEY2)
+ 111   2          {
+ 112   3            UserInput = 0;
+ 113   3            RollTheDice();
+ 114   3            RedUserState = GET_DICE;
+ 115   3          }
+ 116   2          break;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 3   
+
+ 117   2        
+ 118   2        case GET_DICE:
+ 119   2          if(ReadDiceValue()>0)
+ 120   2          {
+ 121   3            DiceResult = ReadDiceValue();
+ 122   3            RedUserState = DICE_VALIDITY_CHECK;
+ 123   3          }
+ 124   2          break;
+ 125   2          
+ 126   2        case DICE_VALIDITY_CHECK:
+ 127   2          if(IsDiceValueValid(DiceResult,Red))
+ 128   2          {
+ 129   3             RedUserState = USER_MOVE_TOKEN;CheckToknFlg = 1;
+ 130   3            if(IsOnlyTokenMovable(RED,DiceResult))
+ 131   3            {
+ 132   4              RedUserState = USER_TOKEN_PROCESS;CheckToknFlg = 0;
+ 133   4            }
+ 134   3          }
+ 135   2          else
+ 136   2          {RedUserState = USER_IDLE;BlueUserFlg = 1;SetArrowPointTo(BLUE);}
+ 137   2          break;
+ 138   2          
+ 139   2        case USER_MOVE_TOKEN:
+ 140   2          if((UserInput == RED_KEY1)&&(KeyPressedOkFlg == 1))
+ 141   2          {
+ 142   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 143   3            NewToknValue = MoveToken(Red[0],DiceResult);
+ 144   3            NToknNumber = 0;RedUserState = USER_TOKEN_PROCESS;
+ 145   3            
+ 146   3          }
+ 147   2          
+ 148   2          else if((UserInput == RED_KEY2)&&(KeyPressedOkFlg == 1))
+ 149   2          {
+ 150   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 151   3            NewToknValue = MoveToken(Red[1],DiceResult);
+ 152   3            NToknNumber = 1;RedUserState = USER_TOKEN_PROCESS;    
+ 153   3          }
+ 154   2          
+ 155   2          else if((UserInput == RED_KEY3)&&(KeyPressedOkFlg == 1))
+ 156   2          {
+ 157   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 158   3            NewToknValue = MoveToken(Red[2],DiceResult);
+ 159   3            NToknNumber = 2;RedUserState = USER_TOKEN_PROCESS;
+ 160   3            
+ 161   3          }
+ 162   2          
+ 163   2          else if((UserInput == RED_KEY4)&&(KeyPressedOkFlg == 1))
+ 164   2          {
+ 165   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 166   3            NewToknValue = MoveToken(Red[3],DiceResult);
+ 167   3            NToknNumber = 3;RedUserState = USER_TOKEN_PROCESS;    
+ 168   3          }
+ 169   2          break;
+ 170   2          
+ 171   2        case USER_TOKEN_PROCESS:
+ 172   2          if(NewToknValue>0)
+ 173   2          {
+ 174   3            UserInput = 0;
+ 175   3            TokenAnimator(NToknNumber,RED,NewToknValue);
+ 176   3            RedUserState = USER_TOKEN_ANIMATING;
+ 177   3          }
+ 178   2          else
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 4   
+
+ 179   2          {
+ 180   3           UserInput = 0;
+ 181   3           CheckToknFlg = 1;
+ 182   3           RedUserState = USER_MOVE_TOKEN;  
+ 183   3          }
+ 184   2          break;
+ 185   2        
+ 186   2        case USER_TOKEN_ANIMATING:
+ 187   2          if(AnimationCmpltFlg)
+ 188   2          {
+ 189   3            if(DiceResult == 6)DiceRollChance +=1;
+ 190   3            if(ConflictFlg){ConflictFlg = 0;DiceRollChance +=1;}
+ 191   3            if(NewToknValue == 57)DiceRollChance +=1;
+ 192   3            RedUserState = USER_RUN_NEXT_CHANCE;
+ 193   3          }
+ 194   2          break;
+ 195   2        case USER_RUN_NEXT_CHANCE:
+ 196   2          if(DiceRollChance>0)
+ 197   2          {
+ 198   3            if(!IsAllTokenMoved(Red))
+ 199   3            {
+ 200   4              DiceRollChance--;
+ 201   4              RedUserState = ROLL_DICE;
+ 202   4            }
+ 203   3            else
+ 204   3            {
+ 205   4              BlueUserFlg = 1;SetArrowPointTo(BLUE);
+ 206   4              DiceRollChance = 0;
+ 207   4              RedUserState = USER_IDLE;
+ 208   4            }
+ 209   3          }
+ 210   2          else
+ 211   2          {
+ 212   3            BlueUserFlg = 1;
+ 213   3            SetArrowPointTo(BLUE);
+ 214   3            RedUserState = USER_IDLE;
+ 215   3          }
+ 216   2          break;
+ 217   2        
+ 218   2        }
+ 219   1      }
+ 220          
+ 221          
+ 222          
+ 223          
+ 224          
+ 225          void BlueUser(void)
+ 226          {
+ 227   1        switch(BlueUserState)
+ 228   1        {
+ 229   2          
+ 230   2        case USER_INIT:
+ 231   2          BlueUserFlg = 0;
+ 232   2          BlueUserState = USER_IDLE;
+ 233   2          break;
+ 234   2        
+ 235   2        case USER_IDLE:
+ 236   2          if(BlueUserFlg)
+ 237   2          {
+ 238   3            BlueUserFlg = 0;
+ 239   3            if(!IsAllTokenMoved(Blue))
+ 240   3            BlueUserState = ROLL_DICE;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 5   
+
+ 241   3            else
+ 242   3            {GreenUserFlg = 1;SetArrowPointTo(GREEN);}
+ 243   3          }
+ 244   2          break;
+ 245   2          
+ 246   2        case ROLL_DICE:
+ 247   2          if(UserInput == BLUE_KEY1)
+ 248   2          {
+ 249   3            UserInput = 0;
+ 250   3            RollTheDice();
+ 251   3            BlueUserState = GET_DICE;
+ 252   3          }
+ 253   2          break;
+ 254   2        
+ 255   2        case GET_DICE:
+ 256   2          if(ReadDiceValue()>0)
+ 257   2          {
+ 258   3            DiceResult = ReadDiceValue();
+ 259   3            BlueUserState = DICE_VALIDITY_CHECK;
+ 260   3          }
+ 261   2          break;
+ 262   2          
+ 263   2        case DICE_VALIDITY_CHECK:
+ 264   2          if(IsDiceValueValid(DiceResult,Blue))
+ 265   2          {
+ 266   3            BlueUserState = USER_MOVE_TOKEN;CheckToknFlg = 1;
+ 267   3            if(IsOnlyTokenMovable(BLUE,DiceResult))
+ 268   3            {
+ 269   4              BlueUserState = USER_TOKEN_PROCESS;CheckToknFlg = 0;
+ 270   4            }
+ 271   3          }
+ 272   2          else
+ 273   2          {BlueUserState = USER_IDLE;GreenUserFlg = 1;SetArrowPointTo(GREEN);}
+ 274   2          break;
+ 275   2          
+ 276   2        case USER_MOVE_TOKEN:
+ 277   2          if((UserInput == BLUE_KEY1)&&(KeyPressedOkFlg == 1))
+ 278   2          {
+ 279   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 280   3            NewToknValue = MoveToken(Blue[0],DiceResult);
+ 281   3            NToknNumber = 0;BlueUserState = USER_TOKEN_PROCESS;
+ 282   3            
+ 283   3          }
+ 284   2          
+ 285   2          else if((UserInput == BLUE_KEY2)&&(KeyPressedOkFlg == 1))
+ 286   2          {
+ 287   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 288   3            NewToknValue = MoveToken(Blue[1],DiceResult);
+ 289   3            NToknNumber = 1;BlueUserState = USER_TOKEN_PROCESS;   
+ 290   3          }
+ 291   2          
+ 292   2          else if((UserInput == BLUE_KEY3)&&(KeyPressedOkFlg == 1))
+ 293   2          {
+ 294   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 295   3            NewToknValue = MoveToken(Blue[2],DiceResult);
+ 296   3            NToknNumber = 2;BlueUserState = USER_TOKEN_PROCESS;
+ 297   3            
+ 298   3          }
+ 299   2          
+ 300   2          else if((UserInput == BLUE_KEY4)&&(KeyPressedOkFlg == 1))
+ 301   2          {
+ 302   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 6   
+
+ 303   3            NewToknValue = MoveToken(Blue[3],DiceResult);
+ 304   3            NToknNumber = 3;BlueUserState = USER_TOKEN_PROCESS;   
+ 305   3          }
+ 306   2          break;
+ 307   2          
+ 308   2        case USER_TOKEN_PROCESS:
+ 309   2          if(NewToknValue>0)
+ 310   2          {
+ 311   3            UserInput = 0;
+ 312   3            TokenAnimator(NToknNumber,BLUE,NewToknValue);
+ 313   3            BlueUserState = USER_TOKEN_ANIMATING;
+ 314   3          }
+ 315   2          else
+ 316   2          {
+ 317   3           UserInput = 0;
+ 318   3           CheckToknFlg = 1;
+ 319   3           BlueUserState = USER_MOVE_TOKEN; 
+ 320   3          }
+ 321   2          break;
+ 322   2        
+ 323   2        case USER_TOKEN_ANIMATING:
+ 324   2          if(AnimationCmpltFlg)
+ 325   2          {
+ 326   3            if(DiceResult == 6)DiceRollChance +=1;
+ 327   3            if(ConflictFlg){ConflictFlg = 0;DiceRollChance +=1;}
+ 328   3            if(NewToknValue == 57)DiceRollChance +=1;
+ 329   3            BlueUserState = USER_RUN_NEXT_CHANCE;
+ 330   3          }
+ 331   2          break;
+ 332   2        case USER_RUN_NEXT_CHANCE:
+ 333   2          if(DiceRollChance>0)
+ 334   2          {
+ 335   3            if(!IsAllTokenMoved(Blue))
+ 336   3            {
+ 337   4              DiceRollChance--;
+ 338   4              BlueUserState = ROLL_DICE;
+ 339   4            }
+ 340   3            else
+ 341   3            {
+ 342   4              GreenUserFlg = 1;
+ 343   4              SetArrowPointTo(GREEN);
+ 344   4              DiceRollChance = 0;
+ 345   4              BlueUserState = USER_IDLE;
+ 346   4            }
+ 347   3          }
+ 348   2          else
+ 349   2          {
+ 350   3            GreenUserFlg = 1;
+ 351   3            SetArrowPointTo(GREEN);
+ 352   3            BlueUserState = USER_IDLE;
+ 353   3          }
+ 354   2          break;
+ 355   2        
+ 356   2        }
+ 357   1      }
+ 358          
+ 359          
+ 360          
+ 361          
+ 362          
+ 363          
+ 364          void GreenUser(void)
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 7   
+
+ 365          {
+ 366   1        switch(GreenUserState)
+ 367   1        {
+ 368   2          
+ 369   2        case USER_INIT:
+ 370   2          GreenUserFlg = 0;
+ 371   2          GreenUserState = USER_IDLE;
+ 372   2          break;
+ 373   2        
+ 374   2        case USER_IDLE:
+ 375   2          if(GreenUserFlg)
+ 376   2          {
+ 377   3            GreenUserFlg = 0;
+ 378   3            if(!IsAllTokenMoved(Green))
+ 379   3            GreenUserState = ROLL_DICE;
+ 380   3            else
+ 381   3            {YellowUserFlg = 1;SetArrowPointTo(YELLOW);}
+ 382   3          }
+ 383   2          break;
+ 384   2          
+ 385   2        case ROLL_DICE:
+ 386   2          if(UserInput == GREEN_KEY1)
+ 387   2          {
+ 388   3            UserInput = 0;
+ 389   3            RollTheDice();
+ 390   3            GreenUserState = GET_DICE;
+ 391   3          }
+ 392   2          break;
+ 393   2        
+ 394   2        case GET_DICE:
+ 395   2          if(ReadDiceValue()>0)
+ 396   2          {
+ 397   3            DiceResult = ReadDiceValue();
+ 398   3            GreenUserState = DICE_VALIDITY_CHECK;
+ 399   3          }
+ 400   2          break;
+ 401   2          
+ 402   2        case DICE_VALIDITY_CHECK:
+ 403   2          if(IsDiceValueValid(DiceResult,Green))
+ 404   2          {
+ 405   3            GreenUserState = USER_MOVE_TOKEN;CheckToknFlg = 1;
+ 406   3            if(IsOnlyTokenMovable(GREEN,DiceResult))
+ 407   3            {
+ 408   4              GreenUserState = USER_TOKEN_PROCESS;CheckToknFlg = 0;
+ 409   4            }
+ 410   3          }
+ 411   2          else
+ 412   2          {GreenUserState = USER_IDLE;YellowUserFlg = 1;SetArrowPointTo(YELLOW);}
+ 413   2          break;
+ 414   2          
+ 415   2        case USER_MOVE_TOKEN:
+ 416   2          if((UserInput == GREEN_KEY1)&&(KeyPressedOkFlg == 1))
+ 417   2          {
+ 418   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 419   3            NewToknValue = MoveToken(Green[0],DiceResult);
+ 420   3            NToknNumber = 0;GreenUserState = USER_TOKEN_PROCESS;
+ 421   3            
+ 422   3          }
+ 423   2          
+ 424   2          else if((UserInput == GREEN_KEY2)&&(KeyPressedOkFlg == 1))
+ 425   2          {
+ 426   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 8   
+
+ 427   3            NewToknValue = MoveToken(Green[1],DiceResult);
+ 428   3            NToknNumber = 1;GreenUserState = USER_TOKEN_PROCESS;    
+ 429   3          }
+ 430   2          
+ 431   2          else if((UserInput == GREEN_KEY3)&&(KeyPressedOkFlg == 1))
+ 432   2          {
+ 433   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 434   3            NewToknValue = MoveToken(Green[2],DiceResult);
+ 435   3            NToknNumber = 2;GreenUserState = USER_TOKEN_PROCESS;
+ 436   3            
+ 437   3          }
+ 438   2          
+ 439   2          else if((UserInput == GREEN_KEY4)&&(KeyPressedOkFlg == 1))
+ 440   2          {
+ 441   3            CheckToknFlg = 0;KeyPressedOkFlg = 0;
+ 442   3            NewToknValue = MoveToken(Green[3],DiceResult);
+ 443   3            NToknNumber = 3;GreenUserState = USER_TOKEN_PROCESS;    
+ 444   3          }
+ 445   2          break;
+ 446   2          
+ 447   2        case USER_TOKEN_PROCESS:
+ 448   2          if(NewToknValue>0)
+ 449   2          {
+ 450   3            UserInput = 0;
+ 451   3            TokenAnimator(NToknNumber,GREEN,NewToknValue);
+ 452   3            GreenUserState = USER_TOKEN_ANIMATING;
+ 453   3          }
+ 454   2          else
+ 455   2          {
+ 456   3           CheckToknFlg = 1;
+ 457   3           UserInput = 0;
+ 458   3           GreenUserState = USER_MOVE_TOKEN;  
+ 459   3          }
+ 460   2          break;
+ 461   2        
+ 462   2        case USER_TOKEN_ANIMATING:
+ 463   2          if(AnimationCmpltFlg)
+ 464   2          {
+ 465   3            if(DiceResult == 6)DiceRollChance +=1;
+ 466   3            if(ConflictFlg){ConflictFlg = 0;DiceRollChance +=1;}
+ 467   3            if(NewToknValue == 57)DiceRollChance +=1;
+ 468   3            GreenUserState = USER_RUN_NEXT_CHANCE;
+ 469   3          }
+ 470   2          break;
+ 471   2          
+ 472   2        case USER_RUN_NEXT_CHANCE:
+ 473   2          if(DiceRollChance>0)
+ 474   2          {
+ 475   3            if(!IsAllTokenMoved(Green))
+ 476   3            {
+ 477   4              DiceRollChance--;
+ 478   4              GreenUserState = ROLL_DICE;
+ 479   4            }
+ 480   3            else
+ 481   3            {
+ 482   4              YellowUserFlg = 1;SetArrowPointTo(YELLOW);
+ 483   4              DiceRollChance = 0;
+ 484   4              GreenUserState = USER_IDLE;
+ 485   4            }
+ 486   3          }
+ 487   2          else
+ 488   2          {
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 9   
+
+ 489   3            YellowUserFlg = 1;
+ 490   3            SetArrowPointTo(YELLOW);
+ 491   3            GreenUserState = USER_IDLE;
+ 492   3          }
+ 493   2          break;
+ 494   2        
+ 495   2        }
+ 496   1      }
+ 497          
+ 498          
+ 499          
+ 500          
+ 501          
+ 502          void YellowUser(void)
+ 503          {
+ 504   1        switch(YellowUserState)
+ 505   1        {
+ 506   2          
+ 507   2        case USER_INIT:
+ 508   2          YellowUserFlg = 0;
+ 509   2          YellowUserState = USER_IDLE;
+ 510   2          break;
+ 511   2        
+ 512   2        case USER_IDLE:
+ 513   2          if(YellowUserFlg)
+ 514   2          {
+ 515   3            YellowUserFlg = 0;
+ 516   3            if(!IsAllTokenMoved(Yellow))
+ 517   3            YellowUserState = ROLL_DICE;
+ 518   3            else
+ 519   3            {RedUserFlg = 1;SetArrowPointTo(RED);}
+ 520   3          }
+ 521   2          break;
+ 522   2          
+ 523   2        case ROLL_DICE:
+ 524   2          if(UserInput == YELLOW_KEY4)
+ 525   2          {
+ 526   3            UserInput = 0;
+ 527   3            RollTheDice();
+ 528   3            YellowUserState = GET_DICE;
+ 529   3          }
+ 530   2          break;
+ 531   2        
+ 532   2        case GET_DICE:
+ 533   2          if(ReadDiceValue()>0)
+ 534   2          {
+ 535   3            DiceResult = ReadDiceValue();
+ 536   3            YellowUserState = DICE_VALIDITY_CHECK;
+ 537   3          }
+ 538   2          break;
+ 539   2          
+ 540   2        case DICE_VALIDITY_CHECK:
+ 541   2          if(IsDiceValueValid(DiceResult,Yellow))
+ 542   2          {
+ 543   3            YellowUserState = USER_MOVE_TOKEN;CheckToknFlg = 1;
+ 544   3            if(IsOnlyTokenMovable(YELLOW,DiceResult))
+ 545   3            {
+ 546   4              YellowUserState = USER_TOKEN_PROCESS;CheckToknFlg = 0;
+ 547   4            }
+ 548   3          }
+ 549   2          else
+ 550   2          {YellowUserState = USER_IDLE;RedUserFlg = 1;SetArrowPointTo(RED);}
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 10  
+
+ 551   2          break;
+ 552   2          
+ 553   2        case USER_MOVE_TOKEN:
+ 554   2          if((UserInput == YELLOW_KEY1)&&(KeyPressedOkFlg == 1))
+ 555   2          {
+ 556   3            CheckToknFlg = 0;
+ 557   3            NewToknValue = MoveToken(Yellow[0],DiceResult);
+ 558   3            NToknNumber = 0;YellowUserState = USER_TOKEN_PROCESS;
+ 559   3            
+ 560   3          }
+ 561   2          
+ 562   2          else if((UserInput == YELLOW_KEY2)&&(KeyPressedOkFlg == 1))
+ 563   2          {
+ 564   3            CheckToknFlg = 0;
+ 565   3            NewToknValue = MoveToken(Yellow[1],DiceResult);
+ 566   3            NToknNumber = 1;YellowUserState = USER_TOKEN_PROCESS;   
+ 567   3          }
+ 568   2          
+ 569   2          else if((UserInput == YELLOW_KEY3)&&(KeyPressedOkFlg == 1))
+ 570   2          {
+ 571   3            CheckToknFlg = 0;
+ 572   3            NewToknValue = MoveToken(Yellow[2],DiceResult);
+ 573   3            NToknNumber = 2;YellowUserState = USER_TOKEN_PROCESS;
+ 574   3            
+ 575   3          }
+ 576   2          
+ 577   2          else if((UserInput == YELLOW_KEY4)&&(KeyPressedOkFlg == 1))
+ 578   2          {
+ 579   3            CheckToknFlg = 0;
+ 580   3            NewToknValue = MoveToken(Yellow[3],DiceResult);
+ 581   3            NToknNumber = 3;YellowUserState = USER_TOKEN_PROCESS;   
+ 582   3          }
+ 583   2          break;
+ 584   2          
+ 585   2        case USER_TOKEN_PROCESS:
+ 586   2          if(NewToknValue>0)
+ 587   2          {
+ 588   3            UserInput = 0;
+ 589   3            TokenAnimator(NToknNumber,YELLOW,NewToknValue);
+ 590   3            YellowUserState = USER_TOKEN_ANIMATING;
+ 591   3          }
+ 592   2          else
+ 593   2          {
+ 594   3           CheckToknFlg = 1;
+ 595   3           UserInput = 0;
+ 596   3           YellowUserState = USER_MOVE_TOKEN; 
+ 597   3          }
+ 598   2          break;
+ 599   2        
+ 600   2        case USER_TOKEN_ANIMATING:
+ 601   2          if(AnimationCmpltFlg)
+ 602   2          {
+ 603   3            if(DiceResult == 6)DiceRollChance +=1;
+ 604   3            if(ConflictFlg){ConflictFlg = 0;DiceRollChance +=1;}
+ 605   3            if(NewToknValue == 57)DiceRollChance +=1;
+ 606   3            YellowUserState = USER_RUN_NEXT_CHANCE;
+ 607   3          }
+ 608   2          break;
+ 609   2          
+ 610   2        case USER_RUN_NEXT_CHANCE:
+ 611   2          if(DiceRollChance>0)
+ 612   2          {
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 11  
+
+ 613   3            if(!IsAllTokenMoved(Yellow))
+ 614   3            {
+ 615   4              DiceRollChance--;
+ 616   4              YellowUserState = ROLL_DICE;
+ 617   4            }
+ 618   3            else
+ 619   3            {
+ 620   4              RedUserFlg = 1;SetArrowPointTo(RED);
+ 621   4              DiceRollChance = 0;
+ 622   4              YellowUserState = USER_IDLE;
+ 623   4            }
+ 624   3          }
+ 625   2          else
+ 626   2          {
+ 627   3            RedUserFlg = 1;
+ 628   3            SetArrowPointTo(RED);
+ 629   3            YellowUserState = USER_IDLE;
+ 630   3          }
+ 631   2          break;
+ 632   2        
+ 633   2        }
+ 634   1      }
+ 635          
+ 636          
+ 637          
+ 638          bit IsDiceValueValid(uint8_t DiceValue,uint8_t UserBuff[4])
+ 639          {
+ 640   1        if(DiceValue == 6)
+ 641   1        {
+ 642   2          if(((UserBuff[0]+6)<58)||((UserBuff[1]+6)<58)||((UserBuff[2]+6)<58)||((UserBuff[3]+6)<58))
+ 643   2          {return 1;}
+ 644   2          else
+ 645   2            return 0;
+ 646   2            
+ 647   2        } 
+ 648   1      
+ 649   1         else
+ 650   1         {
+ 651   2           if((UserBuff[0]==0)&&(UserBuff[1]==0)&&(UserBuff[2]==0)&&(UserBuff[3]==0))
+ 652   2           { return 0;}
+ 653   2           else if(((UserBuff[0] >0)&&((UserBuff[0]+DiceValue)<58))||
+ 654   2                   ((UserBuff[1] >0)&&((UserBuff[1]+DiceValue)<58))||
+ 655   2                   ((UserBuff[2] >0)&&((UserBuff[2]+DiceValue)<58))||
+ 656   2                   ((UserBuff[3] >0)&&((UserBuff[3]+DiceValue)<58))
+ 657   2                   )
+ 658   2           {return 1;}
+ 659   2           else 
+ 660   2             return 0;
+ 661   2           
+ 662   2         }     
+ 663   1      }
+ 664          
+ 665          bit IsAllTokenMoved(uint8_t Token[4])
+ 666          {
+ 667   1        if((Token[0]>56)&&(Token[1]>56)&&(Token[2]>56)&&(Token[3]>56))
+ 668   1          return 1;
+ 669   1        else
+ 670   1          return 0;
+ 671   1      }
+ 672          
+ 673          uint8_t MoveToken(uint8_t OldTokenNumber,uint8_t DiceVal)
+ 674          {
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 12  
+
+ 675   1        if((OldTokenNumber == 0)&&(DiceVal == 6))
+ 676   1        {return 1;}
+ 677   1        else if((OldTokenNumber > 0)&&(OldTokenNumber+DiceVal < 58))
+ 678   1        {return OldTokenNumber+DiceVal;}
+ 679   1        else
+ 680   1        {return 0;}
+ 681   1      }
+ 682          
+ 683          
+ 684          
+ 685          bit IsOnlyTokenMovable(uint8_t ToknClr,uint8_t DiceValue)
+ 686          {
+ 687   1        uint8_t idata TokenVal[4];
+ 688   1        uint8_t idata Counter=0,i=0;
+ 689   1        switch(ToknClr)
+ 690   1        {
+ 691   2          case RED:TokenVal[0] = Red[0];TokenVal[1] = Red[1];TokenVal[2] = Red[2];TokenVal[3] = Red[3];break;
+ 692   2          case BLUE:TokenVal[0] = Blue[0];TokenVal[1] = Blue[1];TokenVal[2] = Blue[2];TokenVal[3] = Blue[3];break;
+ 693   2          case GREEN:TokenVal[0] = Green[0];TokenVal[1] = Green[1];TokenVal[2] = Green[2];TokenVal[3] = Green[3];b
+             -reak;
+ 694   2          case YELLOW:TokenVal[0] = Yellow[0];TokenVal[1] = Yellow[1];TokenVal[2] = Yellow[2];TokenVal[3] = Yellow
+             -[3];break;
+ 695   2        }
+ 696   1        if(DiceValue == 6)
+ 697   1        {
+ 698   2          if((TokenVal[0]==0)&&(TokenVal[1]==0)&&(TokenVal[2]==0)&&(TokenVal[3]==0))
+ 699   2          {NewToknValue = 1;NToknNumber = 0;return 1;}
+ 700   2          
+ 701   2          else 
+ 702   2          {
+ 703   3            for(i=0;i<4;i++){if((TokenVal[i] == 0)||((TokenVal[i]>0)&&((TokenVal[i] + 6)<58))){Counter +=1;NToknNum
+             -ber = i;if(Counter>1)return 0;}}
+ 704   3            if(Counter == 1){if(TokenVal[NToknNumber] == 0){NewToknValue = 1;return 1;}else{NewToknValue = TokenVal
+             -[NToknNumber]+6;return 1;}} 
+ 705   3          }
+ 706   2        }
+ 707   1          
+ 708   1        else
+ 709   1        {
+ 710   2          for(i=0;i<4;i++){if((TokenVal[i]>0)&&((TokenVal[i] + DiceValue)<58)){Counter +=1;NToknNumber = i;if(Coun
+             -ter>1)return 0;}}
+ 711   2          if(Counter == 1){NewToknValue = TokenVal[NToknNumber]+DiceValue;return 1;}
+ 712   2        }
+ 713   1        
+ 714   1        return 0;
+ 715   1      }
+ 716          
+ 717          
+ 718          
+ 719          
+ 720          
+ 721          
+ 722          
+ 723          
+ 724          
+ 725          
+ 726          
+ 727          
+ 728          void ManageAnimation(void)
+ 729          {
+ 730   1        switch(AnimtnState)
+ 731   1        {
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 13  
+
+ 732   2          case ANMTN_INIT:
+ 733   2            AnimtnState = ANMTN_IDLE;
+ 734   2            break;
+ 735   2          
+ 736   2          case ANMTN_IDLE:
+ 737   2            if(AnimateCmd)
+ 738   2            {
+ 739   3              AnimationCmpltFlg = 0;
+ 740   3              AnimateCmd = 0;
+ 741   3              AnmtnBusy = 1;
+ 742   3              AnimationTimer = 0;
+ 743   3              ConflictFlg = 0;
+ 744   3              conflictTknClr = 0;
+ 745   3              conflictTknNmbr = 5;
+ 746   3              AnimtnState = ANIMATE_FORWARD1;
+ 747   3            }
+ 748   2            break;
+ 749   2            
+ 750   2          case ANIMATE_FORWARD1:
+ 751   2            if(AnimationTimer == 0)
+ 752   2            {
+ 753   3              switch(AnmtngTokenColour)
+ 754   3              {
+ 755   4                case RED:
+ 756   4                  if(Red[AnmtngTokenNumber]< AnmtngTokenValue)
+ 757   4                  {Red[AnmtngTokenNumber]++;}
+ 758   4                  break;
+ 759   4                case BLUE:
+ 760   4                  if(Blue[AnmtngTokenNumber]<AnmtngTokenValue)
+ 761   4                  {Blue[AnmtngTokenNumber]++;}
+ 762   4                  break;
+ 763   4                case GREEN:
+ 764   4                  if(Green[AnmtngTokenNumber]<AnmtngTokenValue)
+ 765   4                  {Green[AnmtngTokenNumber]++;}
+ 766   4                  break;
+ 767   4                case YELLOW:
+ 768   4                  if(Yellow[AnmtngTokenNumber]<AnmtngTokenValue)
+ 769   4                  {Yellow[AnmtngTokenNumber]++;}
+ 770   4                  break;
+ 771   4              }
+ 772   3              
+ 773   3              StartBeep();
+ 774   3              AnimationTimer = ANIMATE_FORWARD_TIME;
+ 775   3              AnimtnState = ANIMATE_FORWARD2;
+ 776   3              
+ 777   3            }
+ 778   2            break;
+ 779   2            
+ 780   2          case ANIMATE_FORWARD2:
+ 781   2            if(AnimationTimer == 0)
+ 782   2            {
+ 783   3              StopBeep();
+ 784   3              switch(AnmtngTokenColour)
+ 785   3              {
+ 786   4                case RED:
+ 787   4                  if(Red[AnmtngTokenNumber] == AnmtngTokenValue)
+ 788   4                  {AnimationCmpltFlg = 1;}
+ 789   4                  break;
+ 790   4                case BLUE:
+ 791   4                  if(Blue[AnmtngTokenNumber] == AnmtngTokenValue)
+ 792   4                  {AnimationCmpltFlg = 1;}
+ 793   4                  break;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 14  
+
+ 794   4                case GREEN:
+ 795   4                  if(Green[AnmtngTokenNumber] == AnmtngTokenValue)
+ 796   4                  {AnimationCmpltFlg = 1;}
+ 797   4                  break;
+ 798   4                case YELLOW:
+ 799   4                  if(Yellow[AnmtngTokenNumber] == AnmtngTokenValue)
+ 800   4                  {AnimationCmpltFlg = 1;}
+ 801   4                  break;
+ 802   4              }
+ 803   3              
+ 804   3              
+ 805   3              if(AnimationCmpltFlg)
+ 806   3              {
+ 807   4                AnimationCmpltFlg = 0;
+ 808   4                AnimationTimer = 20;//within 20 milli second UserDriverBridge  can decode 
+ 809   4                AnimtnState = ANMTN_CHECK_CONFLICT;
+ 810   4              }
+ 811   3              else
+ 812   3              {
+ 813   4              AnimationTimer = ANIMATE_FORWARD_TIME;
+ 814   4              AnimtnState = ANIMATE_FORWARD1;
+ 815   4              }
+ 816   3              
+ 817   3            }
+ 818   2            break;
+ 819   2            
+ 820   2          case ANMTN_CHECK_CONFLICT:
+ 821   2            if(AnimationTimer == 0)
+ 822   2            {
+ 823   3              CheckAndGetConflictId(AnmtngTokenColour,AnmtngTokenNumber);
+ 824   3              if(conflictTknClr > 0)
+ 825   3              {
+ 826   4      
+ 827   4                  AnimationTimer = 0;
+ 828   4                  AnimtnState = ANIMATE_BACKWARD1;
+ 829   4              }
+ 830   3              else 
+ 831   3              {
+ 832   4                AnimationCmpltFlg = 1;
+ 833   4                ConflictFlg = 0;
+ 834   4                AnmtnBusy = 0;
+ 835   4                AnimtnState = ANMTN_IDLE;
+ 836   4              }
+ 837   3            }
+ 838   2            break;
+ 839   2            
+ 840   2          case ANIMATE_BACKWARD1:
+ 841   2            if(AnimationTimer == 0)
+ 842   2            {
+ 843   3              StartBeep();
+ 844   3              switch(conflictTknClr)
+ 845   3              {
+ 846   4                case RED:
+ 847   4                  Red[conflictTknNmbr]--;
+ 848   4                  break;
+ 849   4                case BLUE:
+ 850   4                  Blue[conflictTknNmbr]--;
+ 851   4                  break;
+ 852   4                case GREEN:
+ 853   4                  Green[conflictTknNmbr]--;
+ 854   4                  break;
+ 855   4                case YELLOW:
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 15  
+
+ 856   4                  Yellow[conflictTknNmbr]--;
+ 857   4                  break;
+ 858   4              }
+ 859   3              AnimationTimer = ANIMATE_BACKWARD_TIME;
+ 860   3              AnimtnState = ANIMATE_BACKWARD2;
+ 861   3            }
+ 862   2            break;
+ 863   2            
+ 864   2          case ANIMATE_BACKWARD2:
+ 865   2            if(AnimationTimer == 0)
+ 866   2            {
+ 867   3              StopBeep();
+ 868   3              switch(conflictTknClr)
+ 869   3              {
+ 870   4                case RED:
+ 871   4                  if(Red[conflictTknNmbr] == 0)
+ 872   4                    AnimationCmpltFlg = 1;
+ 873   4                  break;
+ 874   4                case BLUE:
+ 875   4                  if(Blue[conflictTknNmbr] == 0)
+ 876   4                    AnimationCmpltFlg = 1;
+ 877   4                  break;
+ 878   4                case GREEN:
+ 879   4                  if(Green[conflictTknNmbr] == 0)
+ 880   4                    AnimationCmpltFlg = 1;
+ 881   4                  break;
+ 882   4                case YELLOW:
+ 883   4                  if(Yellow[conflictTknNmbr] == 0)
+ 884   4                    AnimationCmpltFlg = 1;
+ 885   4                  break;
+ 886   4              }
+ 887   3              
+ 888   3              if(AnimationCmpltFlg)
+ 889   3              {
+ 890   4                AnimationCmpltFlg = 1;
+ 891   4                ConflictFlg = 1;
+ 892   4                AnmtnBusy = 0;
+ 893   4                AnimtnState = ANMTN_IDLE;
+ 894   4                
+ 895   4              }
+ 896   3              else
+ 897   3              {
+ 898   4                AnimationTimer = ANIMATE_BACKWARD_TIME;
+ 899   4                AnimtnState = ANIMATE_BACKWARD1;
+ 900   4              }
+ 901   3            }
+ 902   2            break;
+ 903   2      
+ 904   2        }
+ 905   1      }
+ 906          
+ 907          
+ 908          
+ 909          void CheckAndGetConflictId(uint8_t srcColour,uint8_t srcTknNumber)
+ 910          {
+ 911   1        uint8_t i = 0;
+ 912   1        uint8_t LedPos = 0;
+ 913   1        switch(srcColour)
+ 914   1        {
+ 915   2          case RED:
+ 916   2            for(i= 0;i<4;i++)
+ 917   2            {
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 16  
+
+ 918   3              if(DcodedRed[srcTknNumber] == DcodedBlue[i]){conflictTknClr = BLUE;conflictTknNmbr = i;LedPos = Dc
+             -odedBlue[i];}
+ 919   3              else if(DcodedRed[srcTknNumber] == DcodedGreen[i]){conflictTknClr = GREEN;conflictTknNmbr = i;LedPos =
+             - DcodedGreen[i];}
+ 920   3              else if(DcodedRed[srcTknNumber] == DcodedYellow[i]){conflictTknClr = YELLOW;conflictTknNmbr = i;LedPos
+             - = DcodedYellow[i];}
+ 921   3            }
+ 922   2            break;
+ 923   2            
+ 924   2          case BLUE:
+ 925   2            for(i= 0;i<4;i++)
+ 926   2            {
+ 927   3              if(DcodedBlue[srcTknNumber] == DcodedRed[i]){conflictTknClr = RED;conflictTknNmbr = i;LedPos = Dco
+             -dedRed[i];}
+ 928   3              else if(DcodedBlue[srcTknNumber] == DcodedGreen[i]){conflictTknClr = GREEN;conflictTknNmbr = i;LedPos 
+             -= DcodedGreen[i];}
+ 929   3              else if(DcodedBlue[srcTknNumber] == DcodedYellow[i]){conflictTknClr = YELLOW;conflictTknNmbr = i;LedPo
+             -s = DcodedYellow[i];}
+ 930   3            }
+ 931   2            break;
+ 932   2            
+ 933   2          case GREEN:
+ 934   2            for(i= 0;i<4;i++)
+ 935   2            {
+ 936   3              if(DcodedGreen[srcTknNumber] == DcodedBlue[i]){conflictTknClr = BLUE;conflictTknNmbr = i;LedPos = 
+             -DcodedBlue[i];}
+ 937   3              else if(DcodedGreen[srcTknNumber] == DcodedRed[i]){conflictTknClr = RED;conflictTknNmbr = i;LedPos = D
+             -codedRed[i];}
+ 938   3              else if(DcodedGreen[srcTknNumber] == DcodedYellow[i]){conflictTknClr = YELLOW;conflictTknNmbr = i;LedP
+             -os = DcodedYellow[i];}
+ 939   3            }
+ 940   2            break;
+ 941   2            
+ 942   2          case YELLOW:
+ 943   2            for(i= 0;i<4;i++)
+ 944   2            {
+ 945   3              if(DcodedYellow[srcTknNumber] == DcodedBlue[i]){conflictTknClr = BLUE;conflictTknNmbr = i;LedPos =
+             - DcodedBlue[i];}
+ 946   3              else if(DcodedYellow[srcTknNumber] == DcodedGreen[i]){conflictTknClr = GREEN;conflictTknNmbr = i;LedPo
+             -s = DcodedGreen[i];}
+ 947   3              else if(DcodedYellow[srcTknNumber] == DcodedRed[i]){conflictTknClr = RED;conflictTknNmbr = i;LedPos = 
+             -DcodedRed[i];}
+ 948   3            }
+ 949   2            break;  
+ 950   2        }
+ 951   1        if(IsToknOnBaithki(LedPos)>0)
+ 952   1        {
+ 953   2          conflictTknNmbr = 0;
+ 954   2          conflictTknClr = 0; 
+ 955   2        }
+ 956   1      }
+ 957          
+ 958          
+ 959          uint8_t IsToknOnBaithki(uint8_t LedNumber)
+ 960          {
+ 961   1        uint8_t returnval = 0;
+ 962   1        if(LedNumber>0)
+ 963   1        {
+ 964   2           switch(LedNumber)
+ 965   2           {
+ 966   3             case 1:returnval = 1;break;
+ 967   3             case 9:returnval = 9;break;
+C51 COMPILER V9.60.0.0   USER                                                              10/30/2023 23:23:23 PAGE 17  
+
+ 968   3             case 14:returnval = 14;break;
+ 969   3             case 22:returnval = 22;break;
+ 970   3             case 27:returnval = 27;break;
+ 971   3             case 35:returnval = 35;break;
+ 972   3             case 40:returnval = 40;break;
+ 973   3             case 48:returnval = 48;break;     
+ 974   3           }
+ 975   2        }
+ 976   1        return returnval;
+ 977   1      }
+ 978          
+ 979          
+ 980          void TokenAnimator(uint8_t TknNmber,uint8_t TknClr,uint8_t NewToknValue)
+ 981          {
+ 982   1        AnimateCmd = 1;
+ 983   1        AnmtngTokenColour = TknClr;
+ 984   1        AnmtngTokenNumber = TknNmber;
+ 985   1        AnmtngTokenValue = NewToknValue;
+ 986   1        
+ 987   1      }
+ 988          
+ 989          
+ 990          
+ 991          void AnmtnTimer(void)
+ 992          {
+ 993   1        if(AnimationTimer>0)
+ 994   1          AnimationTimer--;
+ 995   1      
+ 996   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   3316    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     10       1
+   IDATA SIZE       =     22       6
+   BIT SIZE         =      8    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

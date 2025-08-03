@@ -1,0 +1,18 @@
+".\OBJ\HardWare.obj",
+".\OBJ\SPI.obj",
+".\OBJ\Timer0.obj",
+".\OBJ\SystemClock.obj",
+".\OBJ\Delay.obj",
+".\OBJ\eeprom.obj",
+".\OBJ\memmap.obj",
+".\OBJ\BOD.obj",
+".\OBJ\MAIN.obj",
+".\OBJ\Dice.obj",
+".\OBJ\LedBoard.obj",
+".\OBJ\UserDriverBridge.obj",
+".\OBJ\USER.obj",
+".\OBJ\UserInput.obj",
+".\OBJ\Buzzer.obj",
+".\OBJ\Settings.obj" 
+TO ".\OBJ\LudoV1.0" 
+PRINT(".\LST\LudoV1.m51") RAMSIZE(256) 

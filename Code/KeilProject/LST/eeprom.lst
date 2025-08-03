@@ -1,0 +1,212 @@
+C51 COMPILER V9.60.0.0   EEPROM                                                            10/30/2023 23:23:22 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE EEPROM
+OBJECT MODULE PLACED IN .\OBJ\eeprom.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\HardWareCode\eeprom.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\UserCode;..\H
+                    -ardWareCode;..\UserCode) DEBUG OBJECTEXTEND PRINT(.\LST\eeprom.lst) TABS(2) OBJECT(.\OBJ\eeprom.obj)
+
+line level    source
+
+   1          #include ".\include\REG_MG82F6D17.H"
+   2          #include ".\include\Type.h"
+   3          #include ".\include\API_Macro_MG82F6D17.H"
+   4          #include <Intrins.h>
+   5          #include <Absacc.h>
+   6          
+   7          
+   8          #include "eeprom.h"
+   9          #include "memmap.h"
+  10          
+  11          
+  12          /*
+  13          File Name     : eeprom.c
+  14          Version       : 1.0
+  15          Author        : Manish Khandelwal
+  16          Company       : Innovative Products & Solutions
+  17          Date          : 20-10-2021
+  18          Description   : This file contains different methods used for IAP memory Erase/Read/Write algorithm.
+  19          Functions     : EEPROM_Read_Byte(), EEPROM_Clear(), IAP_ErasePage(), 
+  20                        : IAP_WriteByte(), CheckTrapFlag(), ClearTrapFlag() 
+  21          Remarks       : None
+  22          Revision      : 1
+  23          */
+  24          
+  25          
+  26          
+  27          
+  28          //Total Flash Size of MG82F6D17 is 16KB i.e. 16384 Bytes or 4000h Bytes.
+  29          //Note: Flash may be divided into 3 parts i.e. AP, IAP and ISP. 
+  30          //      We are not _using ISP bootloader therefore ISP is 0.
+  31          //      AP is for the Code area and IAP is for non-volatile 
+  32          //      Data storage.
+  33          //The range of CODE flash area(AP+IAP) is 0x0000 to 0x3FFF
+  34          //Since the counting starts from 0 therefore the last addressable 
+  35          //Code flash byte will be 0x3FFF.
+  36          
+  37          //Flash Page Size is 512 bytes (0x200). 
+  38          //Writing to single Flash Byte is not possible. The whole page is 
+  39          //to be erased before writing. So Write is Page wise.
+  40          
+  41          //The last 512 bytes of FLASH is used as EEPROM to store
+  42          //application settings Data (IAP).
+  43          
+  44          //Address Range of last 512 bytes will be 0x3E00 to 0x3FFF
+  45          //i.e.  IAP SIZE = 512 Bytes (0x200)
+  46          //      IAP HIGH BOUNDARY is 0x3FFF
+  47          //      and IAP LOW BOUNDARY is (0x3FFF - IAP Size + 1) = 3E00
+  48          
+  49          //We are not loading IAP Boundary values in firmware as it will be loaded by the 
+  50          //ISP programmer.
+  51          
+  52          
+  53          
+  54          //Reserve the last Flash Page of 512 bytes starting from 0x3E00 for EEPROM purpose.
+C51 COMPILER V9.60.0.0   EEPROM                                                            10/30/2023 23:23:22 PAGE 2   
+
+  55          //The next line tells the compiler to not to write any program Code in this area.
+  56          code char EEPROM_BLOCK [EEPROM_MAX_SIZE] _at_ MEMMAP_START_ADDRESS;
+  57          
+  58          
+  59          //The first EEPROM Data will be stored at 0x3E00
+  60          //The last EEPROM Data will be stored at 0x3FFF
+  61          
+  62          unsigned char EEPROM_Read_Byte(uint16_t code *address)
+  63          {
+  64   1        uint8_t rdata;
+  65   1        rdata = *address>>8;
+  66   1        return rdata;
+  67   1      }
+  68          /*
+  69          unsigned int EEPROM_Read_Int(uint16_t code *address)
+  70          {
+  71            unsigned int ReturnData;
+  72            ReturnData = *address;
+  73            return ReturnData;
+  74          }
+  75          
+  76          double EEPROM_Read_Double(double code *address)
+  77          {
+  78          
+  79            double ReturnData;
+  80            ReturnData = *address;
+  81            return ReturnData;
+  82          }
+  83          */
+  84          
+  85          void EEPROM_Write_nByte(unsigned int u16EPAddr,unsigned char *u8EPData,unsigned char sizeofdata)
+  86          {
+  87   1        bit bEA=EA;
+  88   1        unsigned int idata looptmp=0;
+  89   1        unsigned int idata u16_addrl_r;
+  90   1        unsigned int idata RAMtmp;
+  91   1        unsigned char xdata page_buffer[25];
+  92   1        
+  93   1        //Next Line will always load u16_addrl_r with 0x3E00, i.e. IAP Page Start Address, check to remove redund
+             -ant Code
+  94   1        u16_addrl_r= 0x3E00;                                          
+  95   1                                                                          //Save IAP Data to XRAM 
+  96   1        for(looptmp=0;looptmp<25;looptmp++)                       
+  97   1        {
+  98   2          RAMtmp = EEPROM_Read_Byte((unsigned int code *)(u16_addrl_r + looptmp));
+  99   2          page_buffer[looptmp]=RAMtmp;
+ 100   2        }
+ 101   1        
+ 102   1        for(looptmp=0;looptmp<sizeofdata+1;looptmp++)                       
+ 103   1        {
+ 104   2           page_buffer[((u16EPAddr+looptmp) & 0x1FF)] = u8EPData[looptmp];                      //Modify customer Data in X
+             -RAM
+ 105   2        }
+ 106   1      
+ 107   1          IAP_ErasePage(0x3E);                                            //Erase Last Page (0x3E00) last page of 512 Bytes 
+ 108   1        
+ 109   1        
+ 110   1          //Prepare for writing the XRAM buffer of 512 bytes to IAP
+ 111   1        
+ 112   1          EA = 0;                                 // Disable Global Interrupt 
+ 113   1          ISPCR = 0x80;                           // Enable ISP/IAP Programming
+ 114   1          IFMT = ISP_WRITE;                       // Set the Flash Mode to ISP WRITE BYTE 
+C51 COMPILER V9.60.0.0   EEPROM                                                            10/30/2023 23:23:22 PAGE 3   
+
+ 115   1        
+ 116   1          //for(looptmp=0;looptmp<0x200;looptmp++)  // Loop for 512 bytes to be written to flash IAP  
+ 117   1        looptmp = TOTAL_MEMORY_USED;
+ 118   1          for(looptmp=0;looptmp<TOTAL_MEMORY_USED;looptmp++)  // Loop for 512 bytes to be written to flash IAP  
+ 119   1          {
+ 120   2            IFADRL = (u16_addrl_r&0xff)+looptmp;  // Load the Add High byte of the Flash IAP with loop index
+ 121   2            IFADRH = (u16_addrl_r>>8)&0xff;       // Load the Add Low byte of the Flash IAP
+ 122   2            IFD = page_buffer[looptmp];           // Load the Data byte to be written to Flash IAP
+ 123   2                  
+ 124   2      
+ 125   2            SCMD = 0x46;                          // Trigger Engine for Program Seq1of2
+ 126   2      
+ 127   2            SCMD = 0xB9;                          // Trigger Engine for Program Seq2of2
+ 128   2            nop();                                // CPU will come here after finish processing 
+ 129   2          }
+ 130   1          
+ 131   1          IFMT=0;                                 // Select Flash Mode to Standby
+ 132   1          ISPCR = 0;                              // Disable Flash ISP/IAP Programming
+ 133   1          EA = bEA;                               // Rinstate the Interrupt state
+ 134   1      } 
+ 135          
+ 136          /*
+ 137          void EEPROM_Clear()
+ 138          {
+ 139            EEPROM_Write_Byte(MEMMAP_EEPROM_INIT_FLAG, EEPROM_UNINITIALIZED);
+ 140            POW_ResetToAP();                          // Reset the uC and force start to AP Memory
+ 141          }
+ 142          */
+ 143          
+ 144          void IAP_ErasePage(u8 ByteAddr)
+ 145          {
+ 146   1        bit bEA=EA;                               // Backup the Interrupt Register
+ 147   1        IFADRH = ByteAddr;                        // Load Page Address High Byte (IAP Address)
+ 148   1        IFADRL= 0x00;                             // Load Page Address Low Byte as 0x00 (start page)
+ 149   1        EA = 0;                                   // Disable Global Interrupt
+ 150   1        IFMT = ISP_ERASE;                         // Set the Flash Mode to ErasePage
+ 151   1        ISPCR = 0x80;                             // Enable ISP/IAP Programming
+ 152   1      
+ 153   1        SCMD = 0x46;                              // Trigger Engine for Program Seq1of2
+ 154   1        SCMD = 0xB9;                              // Trigger Engine for Program Seq2of2   
+ 155   1        nop();                                    // CPU will come here after finish processing 
+ 156   1        IFMT=0;                                   // Select Flash Mode to Standby
+ 157   1        ISPCR = 0;                                // Disable Flash ISP/IAP Programming
+ 158   1        EA = bEA;                                 // Rinstate the Interrupt state
+ 159   1      }
+ 160          
+ 161          
+ 162          void IAP_WriteByte(unsigned int ByteAddr, unsigned char ByteData)
+ 163          {
+ 164   1        bit bEA=EA;                               // Backup the Interrupt Register
+ 165   1        IFD = ByteData;                           // Load the Data byte to be written to Flash IAP
+ 166   1        IFADRH = ByteAddr>>8;                     // Load the Add High byte of the Flash IAP
+ 167   1        IFADRL= ByteAddr;                         // Load the Add Low byte of the Flash IAP
+ 168   1        EA = 0;                                   // Disable Global Interrupt
+ 169   1        IFMT = ISP_WRITE;                         // Set the Flash Mode to ISP WRITE BYTE 
+ 170   1        ISPCR = 0x80;                             // Enable ISP/IAP Programming
+ 171   1      
+ 172   1        SCMD = 0x46;                              // Trigger Engine for Program Seq1of2
+ 173   1      
+ 174   1        SCMD = 0xB9;                              // Trigger Engine for Program Seq1of2
+ 175   1        
+ 176   1        nop();                                    // CPU will come here after finish processing 
+C51 COMPILER V9.60.0.0   EEPROM                                                            10/30/2023 23:23:22 PAGE 4   
+
+ 177   1        IFMT=0;                                   // Select Flash Mode to Standby
+ 178   1        ISPCR = 0;                                // Disable Flash ISP/IAP Programming
+ 179   1        EA = bEA;                                 // Rinstate the Interrupt state
+ 180   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    337    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      25
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       6
+   IDATA SIZE       =   ----       6
+   BIT SIZE         =   ----       3
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

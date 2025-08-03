@@ -1,0 +1,177 @@
+C51 COMPILER V9.60.0.0   BOD                                                               10/30/2023 23:23:22 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE BOD
+OBJECT MODULE PLACED IN .\OBJ\BOD.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\HardWareCode\BOD.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\UserCode;..\Hard
+                    -WareCode;..\UserCode) DEBUG OBJECTEXTEND PRINT(.\LST\BOD.lst) TABS(2) OBJECT(.\OBJ\BOD.obj)
+
+line level    source
+
+   1          
+   2          #include <Intrins.h>
+   3          #include ".\include\REG_MG82F6D17.H"
+   4          #include ".\include\Type.h"
+   5          #include ".\include\API_Macro_MG82F6D17.H"
+   6          
+   7          #include "eeprom.h"
+   8          #include "memmap.h"
+   9          bit bBOD1Flag;
+  10          
+  11          
+  12          
+  13          /***********************************************************************************
+  14          Function:     u8 IAP_ReadPPage(u8 PsfrAddr)
+  15          Description:  read P page sfr
+  16          Input:        u8 PsfrAddr: sfr Address
+  17          Output:       u8: sfr data
+  18          *************************************************************************************/
+  19          /*
+  20          u8 IAP_ReadPPage(u8 PsfrAddr)
+  21          {
+  22            bit bEA=EA;
+  23            EA = 0;           
+  24            IFADRH = 0;         // IFADRH must be 0
+  25            IFADRL= PsfrAddr;     // sfr Address
+  26            IFMT = ISP_READ_P;      // read P page sfr
+  27            ISPCR = 0x80;       // Enable ISP/IAP
+  28            SCMD = 0x46;
+  29            SCMD = 0xB9;
+  30            nop();
+  31            IFMT=0;
+  32            ISPCR = 0;          // clear
+  33            EA = bEA;         
+  34            return IFD;         // return sfr data
+  35          }
+  36          */
+  37          /***********************************************************************************
+  38          Function:   void IAP_WritePPage(u8 PsfrAddr,u8 PsfrData)
+  39          Description:  write P page sfr
+  40          Input:   
+  41                  u8 PsfrAddr: sfr Address
+  42                  u8 PsfrData: sfr data
+  43          Output:     
+  44          *************************************************************************************/
+  45          void IAP_WritePPage(u8 PsfrAddr,u8 PsfrData)
+  46          {
+  47   1        bit bEA=EA;
+  48   1        EA = 0;           //
+  49   1        IFADRH = 0;         // IFADRH must be 0
+  50   1        IFADRL= PsfrAddr;     // sfr Address
+  51   1        IFD= PsfrData;        // sfr data
+  52   1        IFMT = ISP_WRITE_P;     // write P page sfr
+  53   1        ISPCR = 0x80;       // Enable ISP/IAP
+  54   1        SCMD = 0x46;
+C51 COMPILER V9.60.0.0   BOD                                                               10/30/2023 23:23:22 PAGE 2   
+
+  55   1        SCMD = 0xB9;
+  56   1        nop();
+  57   1        IFMT=0;
+  58   1        ISPCR = 0;          // clear
+  59   1        EA = bEA;         
+  60   1      }
+  61          
+  62          
+  63          
+  64          /***********************************************************************************
+  65          Function:   void INT_SF(void)
+  66          Description:SF Interrupt handler
+  67          Input:   
+  68          Output:     
+  69          *************************************************************************************/
+  70          void INT_SF(void) interrupt INT_VECTOR_SF
+  71          {
+  72   1        if((PCON1 & BOF0)!=0)
+  73   1        { // BOD0 Interrupt, 1.7V
+  74   2          PCON1 = BOF0;
+  75   2        }
+  76   1      
+  77   1        if((PCON1 & BOF1)!=0)
+  78   1        { // BOD1 ÖÐ¶Ï, 4.2V/3.7V/2.4V/2.0V
+  79   2          PCON1 = BOF1;
+  80   2          bBOD1Flag = 1;
+  81   2          INT_DisSF_BOD1();     // Disable BOD1 interrupt
+  82   2          
+  83   2        }
+  84   1      
+  85   1        if((PCON1 & WDTF)!=0)
+  86   1        { // WDT ÖÐ¶Ï
+  87   2          PCON1 = WDTF;
+  88   2        }
+  89   1      
+  90   1        if((PCON1 & RTCF)!=0)
+  91   1        { // RTC ÖÐ¶Ï
+  92   2          PCON1 = RTCF;
+  93   2        }
+  94   1      
+  95   1      }
+  96          
+  97          
+  98          
+  99          
+ 100          
+ 101          /***********************************************************************************
+ 102          Function:     void InitInterrupt()
+ 103          Description:  Initialize Interrupt
+ 104          Input:   
+ 105          Output:       
+ 106          *************************************************************************************/
+ 107          void InitInterrupt(void)
+ 108          {
+ 109   1        INT_EnSF_BOD1();          // Enable BOD1 interrupt
+ 110   1        INT_EnSF();             // Enable SF interrupt
+ 111   1      } 
+ 112          
+ 113          
+ 114          
+ 115          /***********************************************************************************
+ 116          Function:     void InitBOD()
+C51 COMPILER V9.60.0.0   BOD                                                               10/30/2023 23:23:22 PAGE 3   
+
+ 117          Description:  Initialize BOD
+ 118          Input:   
+ 119          Output:       
+ 120          *************************************************************************************/
+ 121          void InitBOD(void)
+ 122          {
+ 123   1        u8 x;
+ 124   1        x=BIT0;
+ 125   1        
+ 126   1        x=x|POW_BOD1_Enable;        // Enable BOD1
+ 127   1        //x=x|POW_BOD1_Disable;       // Disable BOD1
+ 128   1      
+ 129   1        x=x|POW_BOD1_Set42V;        // BOD1 Detecting 4.2V
+ 130   1        //x=x|POW_BOD1_Set37V;        // BOD1 Detecting 3.7V
+ 131   1        //x=x|POW_BOD1_Set24V;        // BOD1 Detecting 2.4V
+ 132   1        //x=x|POW_BOD1_Set20V;        // BOD1 Detecting 2.0V
+ 133   1        
+ 134   1        //x=x|POW_BOD1_Enable_OnPD;     // Enable BOD1 on PD mode
+ 135   1        x=x|POW_BOD1_Disable_OnPD;      // Disable BOD1 on PD mode
+ 136   1      
+ 137   1        
+ 138   1        //x=x|POW_BOD1_EnReset;       // Enable BOD1 to trigger a MCU reset
+ 139   1        x=x|POW_BOD1_DisReset;      // Disable BOD1 to trigger a MCU reset
+ 140   1      
+ 141   1        //x=x|POW_BOD0_EnReset;       // Enable BOD0(1.7V) to trigger a MCU reset
+ 142   1        //x=x|POW_BOD0_DisReset;      // Disable BOD0(1.7V) to trigger a MCU reset
+ 143   1        
+ 144   1        IAP_WritePPage(PCON2_P, x); 
+ 145   1       
+ 146   1        InitInterrupt();
+ 147   1      
+ 148   1        
+ 149   1      } 
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    104    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

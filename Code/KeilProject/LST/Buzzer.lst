@@ -1,0 +1,243 @@
+C51 COMPILER V9.60.0.0   BUZZER                                                            10/30/2023 23:23:24 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE BUZZER
+OBJECT MODULE PLACED IN .\OBJ\Buzzer.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\UserCode\Buzzer.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\HardWareCode;..\H
+                    -ardWareCode;..\UserCode) DEBUG OBJECTEXTEND PRINT(.\LST\Buzzer.lst) TABS(2) OBJECT(.\OBJ\Buzzer.obj)
+
+line level    source
+
+   1          
+   2          /*
+   3          COMPANY NAME:- YOURS AUTOMATED DEVICES AND SOLUTIONS
+   4          AUTHERS:-    BRAJESH KUMAR
+   5          OBJECTIVE :- FOR TLC V1.0 
+   6          DISCRIPTIONS:-
+   7          The File is Created For ManagingBeep sound Smartly
+   8          Inside The File There is Following Functions:-
+   9          
+  10          1.SetBeepIndication() :- This Function is Non Loop Function , it is for Outer World means this will be use
+             -d by Indication Manager 
+  11                                   for Managing Beep indication. this function Takes two argument as BeepType and Be
+             -epCount
+  12                                   Example:- SetBeepIndication(SHORT_BEEP ,5)  means buzzer beeps as ..----------..---------..--
+             ---------..--------..-----------
+  13                                             SetBeepIndication(LONG_BEEP ,3)  means buzzer beeps as ......--------......--------
+             --.......--------
+  14                                             SetBeepIndication(ULTRA_LONG_BEEP ,2) buzzer beeps as ............----...........-----
+  15                                  the main work of the Function is to set Relevant flags and counter that will be used by Buzzer
+             -Manager
+  16                                  
+  17                                  
+  18          2.BuzzerTimerReload(); :- This Function is Used by BuzzerManager() for Reloadding the Different types of T
+             -imer
+  19                                    This Function takes two argument as beepType and onOroffTime
+  20                                    according to given argument set relevent Timervalue in BuzzerTimer variable
+  21                                    Example:- BuzzerTimerReload(LONG_BEEP,ON_TIME);
+  22                                              it will Reload the Timer varible as BuzzerTimer = LONG_BEEP_ON_TIME
+  23                                              
+  24          3.BuzzerManager(); :- This is While Loop function and Handle different type of Buzzer sound as shortBeep a
+             -nd LongBeep etc
+  25                                working flow chart of the Function is 
+  26                                 BZR_INIT
+  27                                      |
+  28                                     \|/                                                                 yes
+  29          |---------------------->BZR_IDLE-------->check User command that is set by  SetBeepIndication();--->
+  30          |                                                                                                  |  
+  31          |                                                                                                 \|/         
+             -                                                                                        
+  32          |BuzzerTimerReload(beepType,ON_TIME)<----BZR_LD_TIMER ----------------------------------------------      
+  33          |       |
+  34          |        |
+  35          |        |>---------------  BZR_ON_WAIT(if Timer Expires buzeer off)--------->BuzzerTimerReload(beepType,OF
+             -F_TIME)  
+  36          |                                /|\                                                            |
+  37          |                                 |<------------(if Timer Expires buzeer ON)BZR_OFF_WAIT<-----<|                    
+             -                                                                         
+  38          |                                                                    |
+  39           <--------------------------------(if Counter Expires buzeer OFF)<--<|
+  40            
+  41          
+  42          
+  43          Note:- All Hardware Port Pin initialization is Handled in Hardware.c and Hardware.h file
+  44          */
+C51 COMPILER V9.60.0.0   BUZZER                                                            10/30/2023 23:23:24 PAGE 2   
+
+  45          
+  46          #include <REG_MG82F6D17.h>
+  47          #include ".\include\Type.h"
+  48          #include ".\include\API_Macro_MG82F6D17.H"
+  49          
+  50          #include "Buzzer.h"
+  51          #include "Settings.h"
+  52          
+  53          //This is Extern Variable******************
+  54          bit BuzzerBeepcmd;
+  55          volatile unsigned char BuzzerBeepCounter;
+  56          //*****************************************
+  57          
+  58          //***********TIMER_VARIABLE**********
+  59          volatile int BuzzerTimer;
+  60          //***********************************
+  61          
+  62          //Locall used Variable*****************************
+  63          volatile unsigned char BeepType;
+  64          volatile unsigned char BzrState;
+  65          //*************************************************
+  66          
+  67          void SetBeepIndication(unsigned char beepType ,unsigned char Beepcount)
+  68          {
+  69   1        if(BeepDisFlg==0)
+  70   1        {
+  71   2          if(Beepcount>1)
+  72   2          {
+  73   3          BuzzerBeepcmd = 1;
+  74   3          BuzzerBeepCounter = Beepcount;
+  75   3          BeepType = beepType;
+  76   3          }
+  77   2          else if(Beepcount == 1)
+  78   2          {
+  79   3            BZR_PIN = BZR_ON;
+  80   3            BzrState = BZR_ONE_BEEP;
+  81   3            BuzzerTimerReload(BeepType,ON_TIME);
+  82   3          }
+  83   2        }
+  84   1        
+  85   1      }
+  86          
+  87          void StartBeep(void)
+  88          {
+  89   1        if(BeepDisFlg==0)
+  90   1        {
+  91   2         BZR_PIN = BZR_ON;
+  92   2        }
+  93   1      }
+  94          void StopBeep(void)
+  95          {
+  96   1         BZR_PIN = BZR_OFF;
+  97   1      }
+  98          
+  99          void BuzzerManager(void)
+ 100          {
+ 101   1      
+ 102   1        switch(BzrState)
+ 103   1        {
+ 104   2          case BZR_INIT:
+ 105   2            BzrState = BZR_IDLE;
+ 106   2          break;
+C51 COMPILER V9.60.0.0   BUZZER                                                            10/30/2023 23:23:24 PAGE 3   
+
+ 107   2          
+ 108   2          case BZR_IDLE:
+ 109   2            if((BuzzerBeepcmd == 1)&&(BuzzerBeepCounter > 0))
+ 110   2            {BuzzerBeepcmd = 0;BzrState = BZR_LD_TIMER;}
+ 111   2          break;
+ 112   2          
+ 113   2          case BZR_LD_TIMER:
+ 114   2            BuzzerTimerReload(BeepType,ON_TIME);
+ 115   2            BZR_PIN = BZR_ON;  
+ 116   2            BzrState = BZR_ON_WAIT;
+ 117   2          break;
+ 118   2      
+ 119   2            
+ 120   2          case BZR_ON_WAIT:
+ 121   2            if(BuzzerTimer == 0)
+ 122   2            {
+ 123   3              BuzzerTimerReload(BeepType,OFF_TIME);
+ 124   3              BZR_PIN = BZR_OFF;  
+ 125   3              BzrState = BZR_OFF_WAIT;
+ 126   3            }
+ 127   2          break;
+ 128   2          
+ 129   2          case BZR_OFF_WAIT:
+ 130   2            if(BuzzerTimer == 0)
+ 131   2            {
+ 132   3              BuzzerBeepCounter--;
+ 133   3              if(BuzzerBeepCounter == 0)
+ 134   3              {BzrState = BZR_IDLE;}
+ 135   3              else
+ 136   3              {
+ 137   4              BuzzerTimerReload(BeepType,ON_TIME);
+ 138   4              BZR_PIN = BZR_ON;  
+ 139   4              BzrState = BZR_ON_WAIT;
+ 140   4              }   
+ 141   3            }
+ 142   2          break;
+ 143   2          
+ 144   2          case BZR_ONE_BEEP:
+ 145   2            if(BuzzerTimer == 0)
+ 146   2            {
+ 147   3              BZR_PIN = BZR_OFF;  
+ 148   3              BzrState = BZR_IDLE;
+ 149   3            }
+ 150   2            break;
+ 151   2          
+ 152   2        }
+ 153   1      
+ 154   1      }
+ 155          
+ 156          
+ 157          
+ 158          void BuzzerTimerReload(unsigned char beepType,bit onOroffTime)
+ 159          {
+ 160   1        if(onOroffTime)
+ 161   1        {
+ 162   2          switch(beepType)
+ 163   2          {
+ 164   3            case SHORT_BEEP:
+ 165   3              BuzzerTimer = SHORT_BEEP_ON_TIME;
+ 166   3            break;
+ 167   3            
+ 168   3            case LONG_BEEP:
+C51 COMPILER V9.60.0.0   BUZZER                                                            10/30/2023 23:23:24 PAGE 4   
+
+ 169   3              BuzzerTimer = LONG_BEEP_ON_TIME;
+ 170   3            break;
+ 171   3            
+ 172   3            case ULTRA_LONG_BEEP:
+ 173   3              BuzzerTimer = ULTRA_LONG_BEEP_ON_TIME;
+ 174   3            break;
+ 175   3          }
+ 176   2        }
+ 177   1        
+ 178   1        else
+ 179   1        {
+ 180   2          switch(beepType)
+ 181   2          {
+ 182   3            case SHORT_BEEP:
+ 183   3              BuzzerTimer = SHORT_BEEP_OFF_TIME;
+ 184   3            break;
+ 185   3            
+ 186   3            case LONG_BEEP:
+ 187   3              BuzzerTimer = LONG_BEEP_OFF_TIME;
+ 188   3            break;
+ 189   3            
+ 190   3            case ULTRA_LONG_BEEP:
+ 191   3              BuzzerTimer = ULTRA_LONG_BEEP_OFF_TIME;
+ 192   3            break;
+ 193   3          } 
+ 194   2        }
+ 195   1      }
+ 196          
+ 197          
+ 198          void BeepTimer(void)
+ 199          {
+ 200   1        if(BuzzerTimer>0)
+ 201   1        {BuzzerTimer--;}
+ 202   1      }
+ 203          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    235    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

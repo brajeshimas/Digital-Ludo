@@ -1,0 +1,124 @@
+C51 COMPILER V9.60.0.0   SETTINGS                                                          10/30/2023 23:23:24 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE SETTINGS
+OBJECT MODULE PLACED IN .\OBJ\Settings.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\UserCode\Settings.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\HardWareCode;..
+                    -\HardWareCode;..\UserCode) DEBUG OBJECTEXTEND PRINT(.\LST\Settings.lst) TABS(2) OBJECT(.\OBJ\Settings.obj)
+
+line level    source
+
+   1          
+   2          
+   3          #include <REG_MG82F6D17.h>
+   4          #include ".\include\Type.h"
+   5          #include ".\include\API_Macro_MG82F6D17.H"
+   6          
+   7          #include "Settings.h"
+   8          #include "UserInput.h"
+   9          #include "BOD.h"
+  10          #include "memmap.h"
+  11          
+  12          #define SETTING_INIT                  0
+  13          #define SETTING_IDLE                  1
+  14          #define SETTING_CHECK_CMD             2
+  15          
+  16          
+  17          #define BEEP_DISABLE_ENABLE            5
+  18          #define BOARD_RESTART_AGAIN            6
+  19          #define SMART_DICE_DISABLE_ENABLE      7
+  20          #define PLAYER_DISABLE_OR_ENABLE       8  
+  21          #define BOARD_SWITCH_OFF               9  
+  22          #define BOARD_FACTORY_RESET            10
+  23          
+  24          
+  25          uint8_t idata SettingState=0;
+  26          uint8_t idata SettingInput;
+  27          bit BeepDisFlg;
+  28          bit RedUserEnDisFlg;
+  29          bit BlueUserEnDisFlg;
+  30          bit GreenUserEnDisFlg;
+  31          bit YellowUserEnDisFlg;
+  32          bit SmartDiceEnDisFlg;
+  33          void SettingsManager(void)
+  34          {
+  35   1        switch(SettingState)
+  36   1        {
+  37   2          case SETTING_INIT:
+  38   2             BeepDisFlg = 0;
+  39   2             RedUserEnDisFlg = 0;
+  40   2             BlueUserEnDisFlg = 0;
+  41   2             GreenUserEnDisFlg = 0;
+  42   2             YellowUserEnDisFlg = 0;
+  43   2             SmartDiceEnDisFlg = 0;
+  44   2            SettingState = SETTING_IDLE;
+  45   2            break;
+  46   2          
+  47   2          case SETTING_IDLE:
+  48   2            if((KeyPressedFlg == 1)&&(LongPressedCounter>3))
+  49   2            {
+  50   3             SettingInput = KeyColmValue*KeyPressedRowValue;        
+  51   3             SettingState = SETTING_CHECK_CMD;
+  52   3            }
+  53   2            break;
+  54   2            
+C51 COMPILER V9.60.0.0   SETTINGS                                                          10/30/2023 23:23:24 PAGE 2   
+
+  55   2          case SETTING_CHECK_CMD:
+  56   2            if(KeyPressedFlg == 0)
+  57   2            {
+  58   3              switch(LongPressedCounter)
+  59   3              {
+  60   4                case PLAYER_DISABLE_OR_ENABLE:
+  61   4                  if((SettingInput == RED_KEY1)||(SettingInput == RED_KEY2)||(SettingInput == RED_KEY3)||(SettingInput
+             - == RED_KEY4))
+  62   4                  {RedUserEnDisFlg = !RedUserEnDisFlg;}
+  63   4                  else if((SettingInput == BLUE_KEY1)||(SettingInput == BLUE_KEY2)||(SettingInput == BLUE_KEY3)||(Sett
+             -ingInput == BLUE_KEY4))
+  64   4                  {BlueUserEnDisFlg = !BlueUserEnDisFlg;}
+  65   4                  else if((SettingInput == GREEN_KEY1)||(SettingInput == GREEN_KEY2)||(SettingInput == GREEN_KEY3)||(S
+             -ettingInput == GREEN_KEY4))
+  66   4                  {GreenUserEnDisFlg = !GreenUserEnDisFlg;}
+  67   4                  else if((SettingInput == YELLOW_KEY1)||(SettingInput == YELLOW_KEY2)||(SettingInput == YELLOW_KEY3)|
+             -|(SettingInput == YELLOW_KEY4))
+  68   4                  {YellowUserEnDisFlg = !YellowUserEnDisFlg;}
+  69   4                  break;
+  70   4                  
+  71   4                  
+  72   4                case BEEP_DISABLE_ENABLE:
+  73   4                  BeepDisFlg = !BeepDisFlg;
+  74   4                  break;
+  75   4                
+  76   4                case BOARD_SWITCH_OFF:
+  77   4                  break;
+  78   4                
+  79   4                case BOARD_RESTART_AGAIN:
+  80   4                  break;
+  81   4                
+  82   4                case BOARD_FACTORY_RESET:
+  83   4                  break;
+  84   4                
+  85   4                case SMART_DICE_DISABLE_ENABLE:
+  86   4                  break;    
+  87   4              }
+  88   3              SettingState = SETTING_IDLE;
+  89   3            }
+  90   2            //if(bBOD1Flag ==1)
+  91   2            //{bBOD1Flag = 0;SaveAllCrntSettings();while(1);}
+  92   2            break;
+  93   2        }
+  94   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    200    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =      2    ----
+   BIT SIZE         =      6    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
